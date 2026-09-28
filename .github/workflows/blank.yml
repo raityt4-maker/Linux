@@ -16,16 +16,8 @@ jobs:
 
     steps:
 
-      # ==========================================
-      # CHECKOUT
-      # ==========================================
-
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      # ==========================================
-      # SYSTEM INFORMATION
-      # ==========================================
 
       - name: System Information
         shell: bash
@@ -43,7 +35,6 @@ jobs:
           echo ""
           echo "=== CPU ==="
           nproc
-          lscpu | grep -E "Model name|CPU\(s\)" | head -n 5
 
           echo ""
           echo "=== MEMÓRIA ==="
@@ -53,15 +44,11 @@ jobs:
           echo "=== DISCO ==="
           df -h /
 
-      # ==========================================
-      # INSTALL DESKTOP + XRDP
-      # ==========================================
-
       - name: Install Desktop and XRDP
         shell: bash
         run: |
           echo "=========================================="
-          echo "       INSTALANDO INTERFACE GRÁFICA"
+          echo "       INSTALANDO XFCE + XRDP"
           echo "=========================================="
 
           sudo apt-get update
@@ -82,12 +69,7 @@ jobs:
             git \
             htop
 
-          echo ""
           echo "XFCE + XRDP instalados."
-
-      # ==========================================
-      # CREATE USER
-      # ==========================================
 
       - name: Create Linux User
         shell: bash
@@ -106,10 +88,7 @@ jobs:
           if id "andospc" >/dev/null 2>&1; then
             echo "Usuário andospc já existe."
           else
-            sudo useradd \
-              -m \
-              -s /bin/bash \
-              andospc
+            sudo useradd -m -s /bin/bash andospc
           fi
 
           echo "andospc:$RDP_PASSWORD" | sudo chpasswd
@@ -121,87 +100,62 @@ jobs:
 
           sudo chown -R andospc:andospc /home/andospc
 
-          echo ""
-          echo "Usuário criado."
-          echo "Username: andospc"
+          echo "Usuário criado: andospc"
 
-      # ==========================================
-      # CONFIGURE XFCE + XRDP
-      # ==========================================
-
-      - name: Configure XFCE and XRDP
+      - name: Configure XFCE
         shell: bash
         run: |
           echo "=========================================="
-          echo "        CONFIGURANDO XFCE + XRDP"
+          echo "          CONFIGURANDO XFCE"
           echo "=========================================="
 
-          sudo bash -c 'cat > /etc/profile.d/xfce-xrdp.sh << "EOF"
-          export XDG_CONFIG_DIRS=/etc/xdg
-          export XDG_DATA_DIRS=/usr/share:/usr/local/share
-          export XDG_CURRENT_DESKTOP=XFCE
-          export XDG_SESSION_DESKTOP=xfce
-          EOF'
+          printf '%s\n' \
+            'export XDG_CONFIG_DIRS=/etc/xdg' \
+            'export XDG_DATA_DIRS=/usr/share:/usr/local/share' \
+            'export XDG_CURRENT_DESKTOP=XFCE' \
+            'export XDG_SESSION_DESKTOP=xfce' \
+            | sudo tee /etc/profile.d/xfce-xrdp.sh > /dev/null
 
-          sudo bash -c 'cat > /etc/xrdp/startwm.sh << "EOF"
-          #!/bin/sh
-
-          export LANG=C.UTF-8
-          export LANGUAGE=C.UTF-8
-          export LC_ALL=C.UTF-8
-
-          export XDG_CONFIG_DIRS=/etc/xdg
-          export XDG_DATA_DIRS=/usr/share:/usr/local/share
-
-          export XDG_CURRENT_DESKTOP=XFCE
-          export XDG_SESSION_DESKTOP=xfce
-
-          unset DBUS_SESSION_BUS_ADDRESS
-          unset XDG_RUNTIME_DIR
-
-          if [ -r /etc/profile ]; then
-              . /etc/profile
-          fi
-
-          exec dbus-run-session -- startxfce4
-          EOF'
+          printf '%s\n' \
+            '#!/bin/sh' \
+            'export LANG=C.UTF-8' \
+            'export LANGUAGE=C.UTF-8' \
+            'export LC_ALL=C.UTF-8' \
+            'export XDG_CONFIG_DIRS=/etc/xdg' \
+            'export XDG_DATA_DIRS=/usr/share:/usr/local/share' \
+            'export XDG_CURRENT_DESKTOP=XFCE' \
+            'export XDG_SESSION_DESKTOP=xfce' \
+            'unset DBUS_SESSION_BUS_ADDRESS' \
+            'unset XDG_RUNTIME_DIR' \
+            'if [ -r /etc/profile ]; then' \
+            '  . /etc/profile' \
+            'fi' \
+            'exec dbus-run-session -- startxfce4' \
+            | sudo tee /etc/xrdp/startwm.sh > /dev/null
 
           sudo chmod +x /etc/xrdp/startwm.sh
 
-          sudo bash -c 'cat > /home/andospc/.xsession << "EOF"
-          #!/bin/sh
-
-          export LANG=C.UTF-8
-          export LANGUAGE=C.UTF-8
-          export LC_ALL=C.UTF-8
-
-          export XDG_CONFIG_DIRS=/etc/xdg
-          export XDG_DATA_DIRS=/usr/share:/usr/local/share
-
-          export XDG_CURRENT_DESKTOP=XFCE
-          export XDG_SESSION_DESKTOP=xfce
-
-          exec dbus-run-session -- startxfce4
-          EOF'
+          printf '%s\n' \
+            '#!/bin/sh' \
+            'export LANG=C.UTF-8' \
+            'export LANGUAGE=C.UTF-8' \
+            'export LC_ALL=C.UTF-8' \
+            'export XDG_CONFIG_DIRS=/etc/xdg' \
+            'export XDG_DATA_DIRS=/usr/share:/usr/local/share' \
+            'export XDG_CURRENT_DESKTOP=XFCE' \
+            'export XDG_SESSION_DESKTOP=xfce' \
+            'exec dbus-run-session -- startxfce4' \
+            | sudo tee /home/andospc/.xsession > /dev/null
 
           sudo chmod +x /home/andospc/.xsession
 
-          sudo chown andospc:andospc \
-            /home/andospc/.xsession
+          sudo chown andospc:andospc /home/andospc/.xsession
 
-          sudo rm -rf \
-            /home/andospc/.cache/sessions
+          sudo rm -rf /home/andospc/.cache/sessions
 
-          sudo chown -R \
-            andospc:andospc \
-            /home/andospc
+          sudo chown -R andospc:andospc /home/andospc
 
-          echo ""
-          echo "XFCE configurado com sucesso."
-
-      # ==========================================
-      # START XRDP
-      # ==========================================
+          echo "XFCE configurado."
 
       - name: Start XRDP
         shell: bash
@@ -215,18 +169,13 @@ jobs:
 
           sleep 5
 
-          echo ""
-          echo "=== STATUS XRDP ==="
-
-          sudo systemctl status xrdp \
-            --no-pager || true
-
-          echo ""
-          echo "XRDP iniciado."
-
-      # ==========================================
-      # TEST XFCE
-      # ==========================================
+          if systemctl is-active --quiet xrdp; then
+            echo "XRDP: ACTIVE"
+          else
+            echo "XRDP: ERROR"
+            sudo systemctl status xrdp --no-pager || true
+            exit 1
+          fi
 
       - name: Test XFCE
         shell: bash
@@ -253,10 +202,6 @@ jobs:
           echo ""
           echo "Teste concluído."
 
-      # ==========================================
-      # INSTALL TAILSCALE
-      # ==========================================
-
       - name: Install Tailscale
         shell: bash
         run: |
@@ -266,12 +211,7 @@ jobs:
 
           curl -fsSL https://tailscale.com/install.sh | sh
 
-          echo ""
           echo "Tailscale instalado."
-
-      # ==========================================
-      # CONNECT TAILSCALE
-      # ==========================================
 
       - name: Connect Tailscale
         shell: bash
@@ -293,12 +233,7 @@ jobs:
 
           sleep 10
 
-          echo ""
           echo "Tailscale conectado."
-
-      # ==========================================
-      # GET TAILSCALE IP
-      # ==========================================
 
       - name: Get Tailscale IP
         shell: bash
@@ -329,10 +264,6 @@ jobs:
           echo ""
           echo "=========================================="
 
-      # ==========================================
-      # INSTALL GOOGLE CHROME
-      # ==========================================
-
       - name: Install Google Chrome
         shell: bash
         run: |
@@ -344,16 +275,11 @@ jobs:
             https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
             -O /tmp/chrome.deb
 
-          sudo apt-get install -y \
-            /tmp/chrome.deb
+          sudo apt-get install -y /tmp/chrome.deb
 
           rm -f /tmp/chrome.deb
 
           echo "Chrome instalado."
-
-      # ==========================================
-      # INSTALL 7-ZIP
-      # ==========================================
 
       - name: Install 7-Zip
         shell: bash
@@ -366,38 +292,26 @@ jobs:
 
           echo "7-Zip instalado."
 
-      # ==========================================
-      # CONNECTION DETAILS
-      # ==========================================
-
       - name: Connection Details
         shell: bash
         run: |
           echo ""
-          echo "╔══════════════════════════════════════════╗"
-          echo "║          ANDOS UBUNTU PC VIRTUAL        ║"
-          echo "╠══════════════════════════════════════════╣"
-          echo "║ Sistema: Ubuntu Linux                   ║"
-          echo "║ Desktop: XFCE                           ║"
-          echo "║ Host: $TAILSCALE_IP"
-          echo "║ Usuário: andospc                        ║"
-          echo "║ Porta: 3389                             ║"
-          echo "╚══════════════════════════════════════════╝"
+          echo "=========================================="
+          echo "        ANDOS UBUNTU PC VIRTUAL"
+          echo "=========================================="
           echo ""
-
-          echo "NO CELULAR:"
+          echo "Sistema: Ubuntu Linux"
+          echo "Desktop: XFCE"
+          echo "Host: $TAILSCALE_IP"
+          echo "Usuário: andospc"
+          echo "Porta: 3389"
           echo ""
-          echo "1. Abra o Tailscale."
-          echo "2. Conecte ao mesmo Tailnet."
-          echo "3. Abra seu aplicativo RDP."
-          echo "4. PC name: $TAILSCALE_IP"
-          echo "5. Username: andospc"
-          echo "6. Password: valor do Secret RDP_PASSWORD"
+          echo "No celular:"
+          echo "PC name: $TAILSCALE_IP"
+          echo "Username: andospc"
+          echo "Password: Secret RDP_PASSWORD"
           echo ""
-
-      # ==========================================
-      # KEEP SESSION ALIVE
-      # ==========================================
+          echo "=========================================="
 
       - name: Keep Session Alive
         shell: bash
@@ -416,10 +330,7 @@ jobs:
           do
             counter=$((counter + 1))
 
-            echo "=========================================="
-            echo "Heartbeat #$counter"
-            echo "$(date)"
-            echo "=========================================="
+            echo "Heartbeat #$counter - $(date)"
 
             if tailscale status >/dev/null 2>&1
             then
@@ -433,7 +344,7 @@ jobs:
               echo "XRDP: ACTIVE"
             else
               echo "XRDP: ERROR"
-              echo "Tentando reiniciar XRDP..."
+              echo "Reiniciando XRDP..."
               sudo systemctl restart xrdp
             fi
 
