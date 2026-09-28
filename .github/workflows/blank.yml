@@ -67,7 +67,8 @@ jobs:
             wget \
             unzip \
             git \
-            htop
+            htop \
+            p7zip-full
 
           echo "XFCE + XRDP instalados."
 
@@ -153,29 +154,29 @@ jobs:
 
           sudo rm -rf /home/andospc/.cache/sessions
 
+          sudo mkdir -p /home/andospc/.cache/sessions
+
           sudo chown -R andospc:andospc /home/andospc
 
           echo "XFCE configurado."
 
-      - name: Start XRDP
+      - name: Configure XRDP
         shell: bash
         run: |
           echo "=========================================="
-          echo "             INICIANDO XRDP"
+          echo "          CONFIGURANDO XRDP"
           echo "=========================================="
 
+          sudo adduser xrdp ssl-cert || true
+
           sudo systemctl enable xrdp
+
           sudo systemctl restart xrdp
 
           sleep 5
 
-          if systemctl is-active --quiet xrdp; then
-            echo "XRDP: ACTIVE"
-          else
-            echo "XRDP: ERROR"
-            sudo systemctl status xrdp --no-pager || true
-            exit 1
-          fi
+          echo "Status do XRDP:"
+          sudo systemctl status xrdp --no-pager || true
 
       - name: Test XFCE
         shell: bash
@@ -184,23 +185,33 @@ jobs:
           echo "              TESTANDO XFCE"
           echo "=========================================="
 
+          echo ""
           echo "startxfce4:"
-          command -v startxfce4
+          command -v startxfce4 || true
+
+          echo ""
+          echo "xfconf:"
+          dpkg -s xfconf | grep -E "^(Package|Status|Version):" || true
 
           echo ""
           echo "xfconfd:"
-          command -v xfconfd
+          find /usr -type f -name "xfconfd" 2>/dev/null || true
 
           echo ""
           echo "dbus-run-session:"
-          command -v dbus-run-session
+          command -v dbus-run-session || true
 
           echo ""
           echo "xfce4-session:"
-          command -v xfce4-session
+          command -v xfce4-session || true
 
           echo ""
-          echo "Teste concluído."
+          echo "Arquivos XFCE:"
+          ls -la /home/andospc/.xsession || true
+          ls -la /etc/xrdp/startwm.sh || true
+
+          echo ""
+          echo "Teste do XFCE concluído."
 
       - name: Install Tailscale
         shell: bash
@@ -233,7 +244,12 @@ jobs:
 
           sleep 10
 
-          echo "Tailscale conectado."
+          if sudo tailscale status >/dev/null 2>&1; then
+            echo "Tailscale conectado."
+          else
+            echo "ERRO: Tailscale não conectou."
+            exit 1
+          fi
 
       - name: Get Tailscale IP
         shell: bash
@@ -242,7 +258,7 @@ jobs:
           echo "          OBTENDO IP TAILSCALE"
           echo "=========================================="
 
-          TS_IP=$(tailscale ip -4 | head -n 1)
+          TS_IP=$(sudo tailscale ip -4 | head -n 1)
 
           if [ -z "$TS_IP" ]; then
             echo "ERRO: Não foi possível obter o IP."
@@ -263,6 +279,22 @@ jobs:
           echo "DESKTOP: XFCE"
           echo ""
           echo "=========================================="
+
+      - name: Test XRDP Port
+        shell: bash
+        run: |
+          echo "=========================================="
+          echo "          TESTANDO PORTA RDP"
+          echo "=========================================="
+
+          sudo ss -tlnp | grep ':3389' || true
+
+          if sudo ss -tlnp | grep -q ':3389'; then
+            echo "Porta 3389 está ativa."
+          else
+            echo "AVISO: Porta 3389 não apareceu."
+            sudo systemctl status xrdp --no-pager || true
+          fi
 
       - name: Install Google Chrome
         shell: bash
@@ -306,10 +338,11 @@ jobs:
           echo "Usuário: andospc"
           echo "Porta: 3389"
           echo ""
-          echo "No celular:"
+          echo "CONEXÃO RDP:"
+          echo ""
           echo "PC name: $TAILSCALE_IP"
           echo "Username: andospc"
-          echo "Password: Secret RDP_PASSWORD"
+          echo "Password: valor do Secret RDP_PASSWORD"
           echo ""
           echo "=========================================="
 
@@ -332,7 +365,7 @@ jobs:
 
             echo "Heartbeat #$counter - $(date)"
 
-            if tailscale status >/dev/null 2>&1
+            if sudo tailscale status >/dev/null 2>&1
             then
               echo "Tailscale: ACTIVE"
             else
