@@ -11,20 +11,18 @@ on:
 
 jobs:
   deploy-linux-rdp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
 
     steps:
-
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
       - name: System Information
         shell: bash
         run: |
           echo "=========================================="
-          echo "        AnDos UBUNTU PC VIRTUAL"
+          echo "       AnDos UBUNTU PC VIRTUAL"
           echo "=========================================="
+
           echo "Instance: ${{ inputs.instance_number }}"
           echo "Runner: $RUNNER_NAME"
 
@@ -44,7 +42,7 @@ jobs:
           echo "=== DISCO ==="
           df -h /
 
-      - name: Install Desktop and XRDP
+      - name: Install XFCE and XRDP
         shell: bash
         run: |
           echo "=========================================="
@@ -70,7 +68,7 @@ jobs:
             htop \
             p7zip-full
 
-          echo "XFCE + XRDP instalados."
+          echo "Instalação concluída."
 
       - name: Create Linux User
         shell: bash
@@ -78,18 +76,21 @@ jobs:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
         run: |
           echo "=========================================="
-          echo "           CRIANDO USUÁRIO"
+          echo "          CRIANDO USUÁRIO"
           echo "=========================================="
 
           if [ -z "$RDP_PASSWORD" ]; then
-            echo "ERRO: Secret RDP_PASSWORD não configurado."
+            echo "ERRO: RDP_PASSWORD não configurado."
             exit 1
           fi
 
-          if id "andospc" >/dev/null 2>&1; then
+          if id andospc >/dev/null 2>&1; then
             echo "Usuário andospc já existe."
           else
-            sudo useradd -m -s /bin/bash andospc
+            sudo useradd \
+              --create-home \
+              --shell /bin/bash \
+              andospc
           fi
 
           echo "andospc:$RDP_PASSWORD" | sudo chpasswd
@@ -101,70 +102,81 @@ jobs:
 
           sudo chown -R andospc:andospc /home/andospc
 
-          echo "Usuário criado: andospc"
+          echo "Usuário pronto."
 
-      - name: Configure XFCE
+      - name: Configure XFCE for XRDP
         shell: bash
         run: |
           echo "=========================================="
-          echo "          CONFIGURANDO XFCE"
+          echo "       CONFIGURANDO XFCE + XRDP"
           echo "=========================================="
 
-          printf '%s\n' \
-            'export XDG_CONFIG_DIRS=/etc/xdg' \
-            'export XDG_DATA_DIRS=/usr/share:/usr/local/share' \
-            'export XDG_CURRENT_DESKTOP=XFCE' \
-            'export XDG_SESSION_DESKTOP=xfce' \
-            | sudo tee /etc/profile.d/xfce-xrdp.sh > /dev/null
+          # Configuração global
+          sudo tee /etc/profile.d/xfce-xrdp.sh > /dev/null <<'EOF'
+          export XDG_CONFIG_DIRS=/etc/xdg:/etc
+          export XDG_DATA_DIRS=/usr/share:/usr/local/share
+          export XDG_CURRENT_DESKTOP=XFCE
+          export XDG_SESSION_DESKTOP=xfce
+          EOF
 
-          printf '%s\n' \
-            '#!/bin/sh' \
-            'export LANG=C.UTF-8' \
-            'export LANGUAGE=C.UTF-8' \
-            'export LC_ALL=C.UTF-8' \
-            'export XDG_CONFIG_DIRS=/etc/xdg' \
-            'export XDG_DATA_DIRS=/usr/share:/usr/local/share' \
-            'export XDG_CURRENT_DESKTOP=XFCE' \
-            'export XDG_SESSION_DESKTOP=xfce' \
-            'unset DBUS_SESSION_BUS_ADDRESS' \
-            'unset XDG_RUNTIME_DIR' \
-            'if [ -r /etc/profile ]; then' \
-            '  . /etc/profile' \
-            'fi' \
-            'exec dbus-run-session -- startxfce4' \
-            | sudo tee /etc/xrdp/startwm.sh > /dev/null
+          # Script de inicialização do XRDP
+          sudo tee /etc/xrdp/startwm.sh > /dev/null <<'EOF'
+          #!/bin/sh
+
+          if [ -r /etc/profile ]; then
+              . /etc/profile
+          fi
+
+          if [ -r "$HOME/.profile" ]; then
+              . "$HOME/.profile"
+          fi
+
+          unset DBUS_SESSION_BUS_ADDRESS
+          unset XDG_RUNTIME_DIR
+
+          export XDG_CONFIG_DIRS=/etc/xdg:/etc
+          export XDG_DATA_DIRS=/usr/share:/usr/local/share
+          export XDG_CURRENT_DESKTOP=XFCE
+          export XDG_SESSION_DESKTOP=xfce
+
+          exec dbus-run-session -- startxfce4
+          EOF
 
           sudo chmod +x /etc/xrdp/startwm.sh
 
-          printf '%s\n' \
-            '#!/bin/sh' \
-            'export LANG=C.UTF-8' \
-            'export LANGUAGE=C.UTF-8' \
-            'export LC_ALL=C.UTF-8' \
-            'export XDG_CONFIG_DIRS=/etc/xdg' \
-            'export XDG_DATA_DIRS=/usr/share:/usr/local/share' \
-            'export XDG_CURRENT_DESKTOP=XFCE' \
-            'export XDG_SESSION_DESKTOP=xfce' \
-            'exec dbus-run-session -- startxfce4' \
-            | sudo tee /home/andospc/.xsession > /dev/null
+          # Sessão individual do usuário
+          sudo tee /home/andospc/.xsession > /dev/null <<'EOF'
+          #!/bin/sh
+
+          export XDG_CONFIG_DIRS=/etc/xdg:/etc
+          export XDG_DATA_DIRS=/usr/share:/usr/local/share
+          export XDG_CURRENT_DESKTOP=XFCE
+          export XDG_SESSION_DESKTOP=xfce
+
+          unset DBUS_SESSION_BUS_ADDRESS
+          unset XDG_RUNTIME_DIR
+
+          exec dbus-run-session -- startxfce4
+          EOF
 
           sudo chmod +x /home/andospc/.xsession
 
           sudo chown andospc:andospc /home/andospc/.xsession
 
+          # Limpa sessões antigas
           sudo rm -rf /home/andospc/.cache/sessions
 
           sudo mkdir -p /home/andospc/.cache/sessions
 
           sudo chown -R andospc:andospc /home/andospc
 
-          echo "XFCE configurado."
+          echo "Configuração concluída."
 
-      - name: Configure XRDP
+      - name: Configure XRDP Service
         shell: bash
         run: |
           echo "=========================================="
-          echo "          CONFIGURANDO XRDP"
+          echo "          INICIANDO XRDP"
           echo "=========================================="
 
           sudo adduser xrdp ssl-cert || true
@@ -175,43 +187,53 @@ jobs:
 
           sleep 5
 
-          echo "Status do XRDP:"
-          sudo systemctl status xrdp --no-pager || true
+          echo ""
+          echo "=== STATUS XRDP ==="
 
-      - name: Test XFCE
+          sudo systemctl --no-pager status xrdp || true
+
+          echo ""
+          echo "=== PORTA 3389 ==="
+
+          sudo ss -tlnp | grep ':3389' || true
+
+      - name: Verify XFCE
         shell: bash
         run: |
           echo "=========================================="
-          echo "              TESTANDO XFCE"
+          echo "          VERIFICANDO XFCE"
           echo "=========================================="
 
           echo ""
           echo "startxfce4:"
-          command -v startxfce4 || true
-
-          echo ""
-          echo "xfconf:"
-          dpkg -s xfconf | grep -E "^(Package|Status|Version):" || true
-
-          echo ""
-          echo "xfconfd:"
-          find /usr -type f -name "xfconfd" 2>/dev/null || true
-
-          echo ""
-          echo "dbus-run-session:"
-          command -v dbus-run-session || true
+          command -v startxfce4
 
           echo ""
           echo "xfce4-session:"
-          command -v xfce4-session || true
+          command -v xfce4-session
 
           echo ""
-          echo "Arquivos XFCE:"
-          ls -la /home/andospc/.xsession || true
-          ls -la /etc/xrdp/startwm.sh || true
+          echo "dbus-run-session:"
+          command -v dbus-run-session
 
           echo ""
-          echo "Teste do XFCE concluído."
+          echo "xfconf:"
+          dpkg-query -W -f='${Status}\n' xfconf
+
+          echo ""
+          echo "XDG_CONFIG_DIRS:"
+          echo "/etc/xdg:/etc"
+
+          echo ""
+          echo "Arquivo XRDP:"
+          sudo ls -l /etc/xrdp/startwm.sh
+
+          echo ""
+          echo "Arquivo do usuário:"
+          sudo ls -l /home/andospc/.xsession
+
+          echo ""
+          echo "XFCE OK."
 
       - name: Install Tailscale
         shell: bash
@@ -234,7 +256,7 @@ jobs:
           echo "=========================================="
 
           if [ -z "$TAILSCALE_AUTH_KEY" ]; then
-            echo "ERRO: Secret TAILSCALE_AUTH_KEY não encontrado."
+            echo "ERRO: TAILSCALE_AUTH_KEY não configurado."
             exit 1
           fi
 
@@ -244,24 +266,19 @@ jobs:
 
           sleep 10
 
-          if sudo tailscale status >/dev/null 2>&1; then
-            echo "Tailscale conectado."
-          else
-            echo "ERRO: Tailscale não conectou."
-            exit 1
-          fi
+          sudo tailscale status
 
       - name: Get Tailscale IP
         shell: bash
         run: |
           echo "=========================================="
-          echo "          OBTENDO IP TAILSCALE"
+          echo "          IP TAILSCALE"
           echo "=========================================="
 
           TS_IP=$(sudo tailscale ip -4 | head -n 1)
 
           if [ -z "$TS_IP" ]; then
-            echo "ERRO: Não foi possível obter o IP."
+            echo "ERRO: IP Tailscale não encontrado."
             exit 1
           fi
 
@@ -269,32 +286,16 @@ jobs:
 
           echo ""
           echo "=========================================="
-          echo "          ANDOS UBUNTU RDP"
+          echo "          CONEXÃO RDP"
           echo "=========================================="
           echo ""
           echo "HOST: $TS_IP"
-          echo "USER: andospc"
-          echo "PORT: 3389"
-          echo "SYSTEM: Ubuntu Linux"
+          echo "PORTA: 3389"
+          echo "USUÁRIO: andospc"
+          echo "SISTEMA: Ubuntu 24.04"
           echo "DESKTOP: XFCE"
           echo ""
           echo "=========================================="
-
-      - name: Test XRDP Port
-        shell: bash
-        run: |
-          echo "=========================================="
-          echo "          TESTANDO PORTA RDP"
-          echo "=========================================="
-
-          sudo ss -tlnp | grep ':3389' || true
-
-          if sudo ss -tlnp | grep -q ':3389'; then
-            echo "Porta 3389 está ativa."
-          else
-            echo "AVISO: Porta 3389 não apareceu."
-            sudo systemctl status xrdp --no-pager || true
-          fi
 
       - name: Install Google Chrome
         shell: bash
@@ -324,25 +325,25 @@ jobs:
 
           echo "7-Zip instalado."
 
-      - name: Connection Details
+      - name: Final Connection Details
         shell: bash
         run: |
           echo ""
           echo "=========================================="
-          echo "        ANDOS UBUNTU PC VIRTUAL"
+          echo "       ANDOS UBUNTU PC VIRTUAL"
           echo "=========================================="
           echo ""
-          echo "Sistema: Ubuntu Linux"
+          echo "Sistema: Ubuntu 24.04"
           echo "Desktop: XFCE"
           echo "Host: $TAILSCALE_IP"
-          echo "Usuário: andospc"
           echo "Porta: 3389"
+          echo "Usuário: andospc"
           echo ""
-          echo "CONEXÃO RDP:"
+          echo "No aplicativo de RDP:"
           echo ""
-          echo "PC name: $TAILSCALE_IP"
-          echo "Username: andospc"
-          echo "Password: valor do Secret RDP_PASSWORD"
+          echo "PC: $TAILSCALE_IP"
+          echo "Usuário: andospc"
+          echo "Senha: a definida em RDP_PASSWORD"
           echo ""
           echo "=========================================="
 
@@ -351,10 +352,10 @@ jobs:
         run: |
           echo ""
           echo "=========================================="
-          echo "        UBUNTU PC VIRTUAL ATIVO"
+          echo "       UBUNTU PC VIRTUAL ATIVO"
           echo "=========================================="
           echo ""
-          echo "Tempo máximo: 6 horas."
+          echo "O job do GitHub tem limite de 6 horas."
           echo ""
 
           counter=0
@@ -377,8 +378,7 @@ jobs:
               echo "XRDP: ACTIVE"
             else
               echo "XRDP: ERROR"
-              echo "Reiniciando XRDP..."
-              sudo systemctl restart xrdp
+              sudo systemctl restart xrdp || true
             fi
 
             echo ""
